@@ -1,0 +1,67 @@
+version: '3'
+
+services:
+  mariadb:
+    image: mariadb:10
+    container_name: mariadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./scripts:/docker-entrypoint-initdb.d/
+    environment: 
+      MYSQL_ROOT_PASSWORD: bananas
+      MYSQL_DATABASE: banana_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Web management interface
+  
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - rabbitmq_nodejs
+
+
+  serviceb:
+    build: 
+      context: ./ServiceB 
+      dockerfile: Dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+    volumes:
+      - ./ServiceB:/app  # Mount producer service directory
+    networks:
+      - rabbitmq_nodejs
+
+  servicea:
+    build: 
+      context: ./ServiceA
+      dockerfile: Dockerfile
+    depends_on:
+      - rabbitmq
+      - serviceb
+    environment:
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+
+    volumes:
+      - ./ServiceA:/app  # Mount consumer service directory
+    networks:
+      - rabbitmq_nodejs
+
+    
+
+volumes:
+  mariadb_data:
+    driver: local
+  rabbitmq_data:
+
+networks:
+  rabbitmq_nodejs:
+    driver: bridge
